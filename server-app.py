@@ -1,6 +1,49 @@
 import socket
 import threading
 import time
+import requests
+
+def get_trivia_questions(QuestionsAmount, typeOfAnswers):
+    # URL of the API
+    url = f"https://opentdb.com/api.php?amount={QuestionsAmount}&type={typeOfAnswers}"
+
+    # Send a GET request to the API
+    response = requests.get(url)
+
+    # Check if the request was successful (status code 200)
+    if response.status_code == 200:
+        # If successful, return the response content
+        return response.json()
+    else:
+        # If not successful, print an error message and return None
+        print("Failed to retrieve data from the API:", response.status_code)
+        return None
+
+def print_question(question_data):
+    print("Question:", question_data['question'])
+    print("Correct Answer:", question_data['correct_answer'])
+    print("Incorrect Answers:")
+    for answer in question_data['incorrect_answers']:
+        print("-", answer)
+    print()
+
+def parse_questions_response(response):
+    parsed_questions = []
+    results = response.get('results', [])
+    
+    for result in results:
+        parsed_question = {
+            'question': result.get('question', ''),
+            'correct_answer': result.get('correct_answer', ''),
+            'incorrect_answers': result.get('incorrect_answers', [])
+        }
+        parsed_questions.append(parsed_question)
+    
+    return parsed_questions
+
+def fetch_and_parse_questions(QuestionsAmount, typeOfAnswers):
+    unparsedData = get_trivia_questions(QuestionsAmount, typeOfAnswers)
+    return parse_questions_response(unparsedData)    
 
 #Variables for holding information about connections
 connections = []
@@ -52,6 +95,8 @@ def newConnections(socket):
         total_connections += 1
 
 def main():
+    questions = fetch_and_parse_questions(10, "multiple")
+
     #Get host and port
     host = 'localhost'
     port = 13117
