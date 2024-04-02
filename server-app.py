@@ -95,7 +95,7 @@ def newConnections(socket):
         total_connections += 1
 
 def main():
-    questions = fetch_and_parse_questions(10, "multiple")
+    questions = fetch_and_parse_questions(10, "boolean") #another option is boolean
 
     #Get host and port
     host = 'localhost'
