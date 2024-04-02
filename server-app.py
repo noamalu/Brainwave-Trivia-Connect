@@ -1,8 +1,54 @@
+import html
 import socket
 import struct
 import threading
 import time
 from datetime import datetime, timedelta
+import requests
+
+def get_trivia_questions(QuestionsAmount, typeOfAnswers):
+    # URL of the API
+    url = f"https://opentdb.com/api.php?amount={QuestionsAmount}&type={typeOfAnswers}"
+
+    # Send a GET request to the API
+    response = requests.get(url)
+
+    # Check if the request was successful (status code 200)
+    if response.status_code == 200:
+        # If successful, return the response content
+        return response.json()
+    else:
+        # If not successful, print an error message and return None
+        print("Failed to retrieve data from the API:", response.status_code)
+        return None
+
+def print_question(question_data):
+    print("Question:", question_data['question'])
+    print("Correct Answer:", question_data['correct_answer'])
+    print("Incorrect Answers:")
+    for answer in question_data['incorrect_answers']:
+        print("-", answer)
+    print()
+
+def parse_questions_response(response):
+    parsed_questions = []
+    results = response.get('results', [])
+    
+    for result in results:
+        parsed_question = {
+            'question': html.unescape(result.get('question', '')),
+            'correct_answer': html.unescape(result.get('correct_answer', '')),
+            'incorrect_answers': [html.unescape(answer) for answer in result.get('incorrect_answers', [])]
+        }
+        parsed_questions.append(parsed_question)
+    
+    return parsed_questions
+    
+    return parsed_questions
+
+def fetch_and_parse_questions(QuestionsAmount, typeOfAnswers):
+    unparsedData = get_trivia_questions(QuestionsAmount, typeOfAnswers)
+    return parse_questions_response(unparsedData)    
 
 #Variables for holding information about connections
 connections = []
@@ -80,12 +126,20 @@ def broadcastOffers():
         time.sleep(1)
         
 
-def send_message_to_all_clients(message):
+# def send_message_to_all_clients(message):
     
+#     for client in connections:  # Assume 'connections' is your list of client threads
+#         try:
+#             print("i have entered\n")
+#             client.socket.sendall(message.encode('utf-8'))
+#         except Exception as e:
+#             print(f"Error sending message to {client.address}: {e}")
+
+def send_message_to_all_clients(message):
+    decoded_message = html.unescape(message)
     for client in connections:  # Assume 'connections' is your list of client threads
         try:
-            print("i have entered\n")
-            client.socket.sendall(message.encode('utf-8'))
+            client.socket.sendall(decoded_message.encode('utf-8'))
         except Exception as e:
             print(f"Error sending message to {client.address}: {e}")
 
@@ -111,10 +165,15 @@ def main():
 
     # Prevent the main thread from exiting
     try:
-        while True:
-            print("I am sending a msg to all my children\n")
-            send_message_to_all_clients("Hello, clients! This is your captain speaking, we are heading towards the iceberg!")
-            time.sleep(2)
+        questions = fetch_and_parse_questions(10, "boolean") #another option is multiple   
+        # send_message_to_all_clients("Hello, clients! This is your captain speaking, we are heading towards the iceberg!")     
+        send_message_to_all_clients("Let's start playing!\n")
+        print(questions[0]['question'])
+        send_message_to_all_clients(questions[0]['question'])
+
+        # while True:
+        #     # print("I am sending a msg to all my children\n")
+        #     time.sleep(2)
     except KeyboardInterrupt:
         print("Server is shutting down.")
         # Add any cleanup code here (closing sockets, etc.)
