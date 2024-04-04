@@ -3,82 +3,57 @@ import struct
 import threading
 import sys
 
-#Wait for incoming data from server
-#.decode is used to turn the message in bytes to a string
-name = "temp name"
-
-def receive(socket, signal):
-    while not signal:
-        try:
-            data = socket.recv(1024)
-            print(str(data.decode("utf-8")))
-        except:
-            print("You have been disconnected from the server")
-            signal = False
-            break
-
-def listen_for_offers():
-    udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    udp_socket.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR , 1)
-    udp_socket.bind(('', 13117))
-    print("Client started, listening for offer requests...")
+def receive_msg_from_server(tcp_socket):
+    """Continuously listen for messages from the server and handle them. 
+    Do not prompt for user input on the first message."""
+    first_message = True  # Flag to track if it's the first message received
     while True:
-        data, addr = udp_socket.recvfrom(1024)
-        magic_cookie, message_type, server_port = struct.unpack('!IbH', data)
-        if (magic_cookie == 0xabcddcba and message_type == 0x2):
-            print(f"Received offer from {addr[0]}, attempting to connect...")
-            connect_to_server(addr[0], server_port)
+        try:
+            data = tcp_socket.recv(1024).decode("utf-8")
+            if data:
+                if first_message:
+                    # Handle the first message (e.g., game start message) without prompting for input
+                    print(data)
+                    first_message = False  # Update the flag after the first message is processed
+                else:
+                    # For subsequent messages, prompt the user for their answer
+                    print(f"Question: {data}")
+                    answer = input("Your answer: ")
+                    send_msg_to_server(tcp_socket, answer)
+        except Exception as e:
+            print(f"Error receiving message: {e}")
             break
+
+
+def send_msg_to_server(tcp_socket, message):
+    """Send a message (user's answer) to the server."""
+    try:
+        tcp_socket.sendall(message.encode())
+    except Exception as e:
+        print(f"Error sending message: {e}")
 
 def connect_to_server(host, port):
+    """Establish connection to the server."""
     try:
         tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         tcp_socket.connect((host, port))
-        print("Connected to the server.")
+        print("Connected to the server. Waiting for the game to start...")
         name = input("Enter your name:\n")
         tcp_socket.sendall(name.encode())
 
-        receive_thread = threading.Thread(target=receive, args=(tcp_socket,False))
-        receive_thread.start()
-        while True:
-            message = input()
-            if message:
-                tcp_socket.sendall(message.encode())
+        return tcp_socket
     except Exception as e:
         print(f"Could not connect to the server: {e}")
         sys.exit(0)
 
+def main():
+    host = 'localhost' # Server host (IP address or hostname)
+    port = 13117         # Server port for the trivia game
+
+    tcp_socket = connect_to_server(host, port)
+    
+    # After connecting, start listening for messages (questions) from the server
+    receive_msg_from_server(tcp_socket)
 
 if __name__ == "__main__":
-    listen_for_offers()
-
-
-
-
-
-
-
-
-# #Get host and port
-# host = input("Host: ")
-# port = int(input("Port: "))
-
-# #Attempt connection to server
-# try:
-#     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#     sock.connect((host, port))
-# except:
-#     print("Could not make a connection to the server")
-#     input("Press enter to quit")
-#     sys.exit(0)
-
-# #Create new thread to wait for data
-# receiveThread = threading.Thread(target = receive, args = (sock, True))
-# receiveThread.start()
-
-# #Send data to server
-# #str.encode is used to turn the string message into bytes so it can be sent across the network
-# while True:
-#     message = input()
-#     sock.sendall(str.encode(message))
-    
+    main()
