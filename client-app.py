@@ -10,19 +10,15 @@ def receive_msg_from_server(tcp_socket):
     while True:
         try:
             data = tcp_socket.recv(1024).decode("utf-8")
-            if data:
-                if first_message:
-                    # Handle the first message (e.g., game start message) without prompting for input
-                    print(data)
-                    first_message = False  # Update the flag after the first message is processed
-                else:
-                    # For subsequent messages, prompt the user for their answer
-                    print(f"Question: {data}")
-                    answer = input("Your answer: ")
-                    send_msg_to_server(tcp_socket, answer)
+
+            # For subsequent messages, prompt the user for their answer
+            print(data)
+            answer = input("Your answer: ")
+            send_msg_to_server(tcp_socket, answer)
         except Exception as e:
             print(f"Error receiving message: {e}")
             break
+
 
 
 def send_msg_to_server(tcp_socket, message):

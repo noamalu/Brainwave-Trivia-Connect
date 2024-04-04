@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 import html
 import socket
 import struct
@@ -33,7 +34,6 @@ def print_question(question_data):
 def parse_questions_response(response):
     parsed_questions = []
     results = response.get('results', [])
-    
     for result in results:
         parsed_question = {
             'question': html.unescape(result.get('question', '')),
@@ -100,13 +100,77 @@ def receive(client):
     finally:
         client.socket.close()
         connections.remove(client)
+        
+def send_question_to_client(client, question_data):
+    try:
+        client.socket.sendall(question_data.encode('utf-8'))
+    except Exception as e:
+        print(f"Error sending message to {client.address}: {e}")
 
-def send_to_clients(message):
-    for client in connections:
-        try:
-            client.socket.sendall(message.encode('utf-8'))
-        except Exception as e:
-            print(f"Error sending message to {client.address}: {e}")
+def send_questions_to_clients(questions, connections):
+    for question in questions:
+        current_question = question['question']
+        possible_answers = [question['correct_answer']] + question['incorrect_answers']
+        answers_str = '\n'.join([f"{i+1}) {html.unescape(answer)}" for i, answer in enumerate(possible_answers)])
+        question_data = f"Question: {current_question}\n{answers_str}"
+        
+        # Using a thread pool to limit the number of threads
+        with ThreadPoolExecutor(max_workers=len(connections)) as executor:
+            # Send question to each client concurrently
+            for client in connections:
+                executor.submit(send_question_to_client, client, question_data)
+
+        # Wait for responses from all clients using a condition variable
+        lock = threading.Lock()
+        all_clients_responded = threading.Condition(lock)
+
+        responses = {}  # Dictionary to store responses from clients
+
+        # Start a thread for each player to handle their response
+        threads = []
+        for client in connections:
+            t = threading.Thread(target=handle_player_response, args=(client, responses, all_clients_responded))
+            t.start()
+            threads.append(t)
+
+        # Poll until timeout
+        timeout = 10  # 10 seconds timeout
+        start_time = time.time()
+        with all_clients_responded:
+            while time.time() - start_time < timeout:
+                if len(responses) == len(connections):
+                    break
+                all_clients_responded.wait(timeout=1)
+
+        # Process responses and disqualify players who didn't respond
+        for client in connections:
+            if client not in responses:
+                print(f"Player {client.address} didn't respond in time. Disqualifying...")
+                send_question_to_client(client=client, question_data="got disqulified")
+                connections.remove(client)
+
+        # Check if all players have been disqualified
+        if not connections:
+            print("All players disqualified. Game over.")
+            break  # Exit the loop and end the game
+
+        # Process responses here if needed
+        print("All clients responded to the question.")
+
+        # Reset responses dictionary for the next question
+        responses.clear()
+
+
+
+def handle_player_response(client, responses, all_clients_responded):
+    try:
+        data = client.socket.recv(1024).decode("utf-8").strip()
+        if data:
+            responses[client] = data
+            with all_clients_responded:
+                all_clients_responded.notify_all()
+    except Exception as e:
+        print(f"Error receiving message from {client.address}: {e}")
 
 def broadcast_offers():
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -138,11 +202,9 @@ def main():
 
     # Example game loop (simplified)
     questions = fetch_and_parse_questions(5, "boolean")
-    for question in questions:
-        current_question = question['question']
-        send_to_clients(current_question)
-        for client in connections:
-            threading.Thread(target=receive, args=(client,)).start()
+    send_questions_to_clients(questions, connections)
+    for client in connections:
+        threading.Thread(target=receive, args=(client,)).start()
 
     # Cleanup and closing connections can go here
 
