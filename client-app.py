@@ -10,15 +10,18 @@ def receive_msg_from_server(tcp_socket):
     while True:
         try:
             data = tcp_socket.recv(1024).decode("utf-8")
-
-            # For subsequent messages, prompt the user for their answer
             print(data)
+            
+            # Check if the message indicates disqualification
+            if "disqualified" in data.lower():
+                break  # Exit the loop if disqualified
+                
+            # For subsequent messages, prompt the user for their answer
             answer = input("Your answer: ")
             send_msg_to_server(tcp_socket, answer)
         except Exception as e:
             print(f"Error receiving message: {e}")
             break
-
 
 
 def send_msg_to_server(tcp_socket, message):
