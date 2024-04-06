@@ -193,17 +193,17 @@ def process_responses(responses, connections, question):
     for client in connections:
         if client in correct_players:
             print(f"Player {client.name} is correct!")
-        else:
+        elif client in responses:
             print(f"Player {client.name} is incorrect!")
-
-    if len(correct_players) == 1:
-        print(f"{correct_players[0].name} Wins!\nGame over!\nCongratulations to the winner: {correct_players[0].name}")
-        return -1 # Exit the loop and end the game
 
     # Disqualify players who didn't respond
     for client in connections:
         if client not in responses:
             disqualify(client, "didn't answer in time.")
+
+    if len(correct_players) == 1:
+        print(f"{correct_players[0].name} Wins!\nGame over!\nCongratulations to the winner: {correct_players[0].name}")
+        return -1 # Exit the loop and end the game
 
     # Disqualify players who were wrong
     if len(correct_players) > 0:
