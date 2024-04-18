@@ -7,6 +7,29 @@ import time
 from datetime import datetime, timedelta
 import requests
 
+trivia_questions = [
+    {"question": "Aston Villa has won the English Premier League title more than once.", "is_true": True},
+    {"question": "Aston Villa's home ground is Villa Park.", "is_true": True},
+    {"question": "Aston Villa was one of the founding members of the English Football League in 1888.", "is_true": True},
+    {"question": "Aston Villa has never won the UEFA Champions League.", "is_true": True},
+    {"question": "Aston Villa's traditional colors are claret and blue.", "is_true": True},
+    {"question": "Aston Villa's nickname is 'The Lions'.", "is_true": True},
+    {"question": "Aston Villa holds the record for the most FA Cup final appearances.", "is_true": True},
+    {"question": "Aston Villa's all-time leading goal scorer is Billy Walker.", "is_true": False},
+    {"question": "Aston Villa has never been relegated from the English Premier League.", "is_true": False},
+    {"question": "Aston Villa has won the UEFA Europa League.", "is_true": False},
+    {"question": "Aston Villa has never won the Football League Cup.", "is_true": False},
+    {"question": "Aston Villa's highest league finish is 2nd place.", "is_true": True},
+    {"question": "Aston Villa has a fierce rivalry with Wolverhampton Wanderers.", "is_true": True},
+    {"question": "Aston Villa has won the FA Cup more times than any other club.", "is_true": False},
+    {"question": "Aston Villa was founded in the 19th century.", "is_true": True},
+    {"question": "Aston Villa's record transfer signing is Darren Bent.", "is_true": False},
+    {"question": "Aston Villa has won the English top-flight division in the 21st century.", "is_true": False},
+    {"question": "Aston Villa's longest-serving manager is Ron Atkinson.", "is_true": False},
+    {"question": "Aston Villa has a statue of Cristiano Ronaldo outside Villa Park.", "is_true": False},
+    {"question": "Aston Villa has never won the European Cup/Champions League.", "is_true": True}
+]
+
 def get_trivia_questions(QuestionsAmount, typeOfAnswers):
     # URL of the API
     url = f"https://opentdb.com/api.php?amount={QuestionsAmount}&type={typeOfAnswers}"
@@ -43,9 +66,33 @@ def parse_questions_response(response):
         parsed_questions.append(parsed_question)
     
     return parsed_questions
+# def fetch_and_parse_questions(QuestionsAmount, typeOfAnswers):
+#     unparsedData = get_trivia_questions(QuestionsAmount, typeOfAnswers)
+#     return parse_questions_response(unparsedData)    
+
+def parse_predefined_questions(questions):
+    parsed_questions = []
+    for question in questions:
+        parsed_question = {
+            'question': question['question'],
+            'correct_answer': str(question['is_true']),
+            'incorrect_answers': [str(not question['is_true'])]
+        }
+        parsed_questions.append(parsed_question)
+    return parsed_questions
+
 def fetch_and_parse_questions(QuestionsAmount, typeOfAnswers):
-    unparsedData = get_trivia_questions(QuestionsAmount, typeOfAnswers)
-    return parse_questions_response(unparsedData)    
+    try:
+        unparsedData = get_trivia_questions(QuestionsAmount, typeOfAnswers)
+    except Exception as e:
+        print("An error occurred while fetching trivia questions:", e)
+        unparsedData = None
+
+    if unparsedData is not None:
+        return parse_questions_response(unparsedData)
+    else:
+        print("API request failed. Using predefined question bank.")
+        return parse_predefined_questions(trivia_questions)
 
 connections = []
 total_connections = 0
