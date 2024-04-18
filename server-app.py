@@ -94,213 +94,206 @@ def fetch_and_parse_questions(QuestionsAmount, typeOfAnswers):
         print("API request failed. Using predefined question bank.")
         return parse_predefined_questions(trivia_questions)
 
-connections = []
-total_connections = 0
-game_started = False
-
 class Client(threading.Thread):
-    def __init__(self, socket, address, id, signal):
-        threading.Thread.__init__(self)
+    def __init__(self, socket, address, id):
+        super().__init__()
         self.socket = socket
         self.address = address
         self.id = id
         self.name = ""
-        self.signal = signal
         self.first_message_received = False  # connect msg
 
-    
     def __str__(self):
         return f"Client {self.id} {self.name} from {str(self.address)}"
 
-def accept_clients(sock):
-    global game_started
-    while not game_started:
+class TriviaServer:
+    def __init__(self, host, port):
+        self.host = host
+        self.port = port
+        self.connections = []
+        self.total_connections = 0
+        self.game_started = False
+
+    def accept_clients(self):
+        while not self.game_started:
+            try:
+                client_socket, address = self.server_socket.accept()
+                new_client = Client(client_socket, address, self.total_connections)
+                new_client.name = new_client.socket.recv(1024).decode().strip()
+                self.connections.append(new_client)
+                print(f"New connection: {new_client.name}")
+                self.total_connections += 1
+            except socket.timeout:
+                # If no new connections within a certain time, break the loop
+                break
+        print("No longer accepting new clients. Game is starting.")
+
+    def receive(self, client):
         try:
-            client_socket, address = sock.accept()
-            global total_connections
-            new_client = Client(client_socket, address, total_connections, True)
-            new_client.name = new_client.socket.recv(1024).decode().strip()
-            connections.append(new_client)
-            print(f"New connection: {new_client.name}")
-            print(f"Received offer from server {new_client.name} at address {address[0]}, attempting to connect...")
-            total_connections += 1
-        except socket.timeout:
-            # If no new connections within a certain time, break the loop
-            break
-    print("No longer accepting new clients. Game is starting.")
+            while True:
+                if not client.first_message_received:
+                    # Skip the first message (name of the client, already handled during connection)
+                    client.first_message_received = True
+                    continue
+                
+                data = client.socket.recv(1024).decode().strip()
+                if data:
+                    print(f"Client {client.name} answered {data}")
+                    # Here, you could add logic to check answers, update scores, etc.
+        except Exception as e:
+            print(f"Error receiving data from client {client.name}: {e}")
+        finally:
+            client.socket.close()
+            self.connections.remove(client)
 
-def receive(client):
-    try:
-        while client.signal:
-            if not client.first_message_received:
-                # Skip the first message (name of the client, already handled during connection)
-                client.first_message_received = True
-                continue
-            
-            data = client.socket.recv(1024).decode().strip()
+    def manage_trivia_game(self, questions):    
+        round_number = 1
+        while len(self.connections) > 1 and self.game_started:
+            print(f"Round {round_number}, played by: {', '.join(client.name for client in self.connections)}")
+
+            for question in questions:
+                question_data = self.format_question(question)
+                print(question_data)
+                # Using a thread pool to limit the number of threads
+                with ThreadPoolExecutor(max_workers=len(self.connections)) as executor:
+                    # List to keep track of threads
+                    threads = []
+
+                    # Send question to each client concurrently
+                    for client in self.connections:
+                        thread = threading.Thread(target=self.send_question_to_client, args=(client, question_data))
+                        thread.start()
+                        threads.append(thread)
+
+                    # Wait for all threads to complete
+                    for thread in threads:
+                        thread.join()
+                        
+                responses = {}  # Dictionary to store responses from clients
+
+                self.wait_for_responses(responses)
+                if len(responses) == 0:
+                    round_number += 1
+                    continue
+                
+                self.process_responses(responses, question)
+                if not self.game_started:
+                    break
+
+            round_number += 1
+
+        if len(self.connections) == 1:
+            print(f"Game over!\nCongratulations to the winner: {self.connections[0].name}")
+            self.game_started = False
+
+    def wait_for_responses(self, responses):
+        lock = threading.Lock()
+        all_clients_responded = threading.Condition(lock)
+
+        # Start a thread for each player to handle their response
+        threads = []
+        for client in self.connections:
+            t = threading.Thread(target=self.handle_player_response, args=(client, responses, all_clients_responded))
+            t.start()
+            threads.append(t)
+
+        # Poll until timeout
+        timeout = 10  # 10 seconds timeout
+        start_time = time.time()
+        with all_clients_responded:
+            while time.time() - start_time < timeout:
+                if len(responses) == len(self.connections):
+                    break
+                all_clients_responded.wait(timeout=1)
+
+    def handle_player_response(self, client, responses, all_clients_responded):
+        try:
+            data = client.socket.recv(1024).decode("utf-8").strip()
             if data:
-                print(f"Client {client.name} answered {data}")
-                # Here, you could add logic to check answers, update scores, etc.
-    except Exception as e:
-        print(f"Error receiving data from client {client.name}: {e}")
-    finally:
-        client.socket.close()
-        connections.remove(client)
-        
-def send_question_to_client(client, question_data):
-    try:
-        client.socket.sendall(question_data.encode('utf-8'))
-    except Exception as e:
-        print(f"Error sending message to {client.address}: {e}")
+                responses[client] = data
+                with all_clients_responded:                
+                    all_clients_responded.notify_all()
+        except Exception as e:
+            print(f"Error receiving message from {client.address}: {e}")    
 
-def manage_trivia_game(questions, connections):    
-    global game_started
-    round_number = 1
-    while len(connections) > 1:
-        print(f"Round {round_number}, played by: {', '.join(client.name for client in connections)}")
+    def process_responses(self, responses, question):
+        correct_answer = question['correct_answer']
+        correct_players = [client for client, response in responses.items() if response.strip().lower() == correct_answer.strip().lower()]
+        incorrect_players = [client for client, response in responses.items() if response.strip().lower() != correct_answer.strip().lower()]
 
-        for question in questions:
-            question_data = format_question(question)
-            
-            # Using a thread pool to limit the number of threads
-            with ThreadPoolExecutor(max_workers=len(connections)) as executor:
-                # Send question to each client concurrently
-                for client in connections:
-                    executor.submit(send_question_to_client, client, question_data)
+        for client in self.connections:
+            if client in correct_players:
+                print(f"Player {client.name} is correct!")
+            elif client in responses:
+                print(f"Player {client.name} is incorrect!")
 
-            responses = {}  # Dictionary to store responses from clients
+        # Disqualify players who didn't respond
+        for client in self.connections:
+            if client not in responses:
+                print(f"Player {client.name} didn't answer in time.")
+                self.disqualify(client, "didn't answer in time.")
 
-            wait_for_responses(responses, connections)
-            if len(responses) == 0:
-                round_number+=1
-                break
-            
-            process_round = process_responses(responses, connections, question)
-            if  process_round == -1: 
-                game_started = False
-                return
-            elif process_round == 2:
-                round_number+=1
-                break
+        if len(correct_players) == 1:
+            self.game_started = False  # Set game_started to False when a winner is determined
 
-            # Check if all players have been disqualified
-            if not connections:
-                print("All players disqualified. Game over.")
-                game_started = False
-                return  # Exit the loop and end the game
+        # Disqualify players who were wrong
+        if len(correct_players) > 0:
+            for client in incorrect_players:
+                self.disqualify(client, "incorrect answer")                           
 
-        round_number += 1
+    def disqualify(self, client, reason):
+        self.connections.remove(client)                 
 
-    if len(connections) == 1:
-        print(f"Game over!\nCongratulations to the winner: {connections[0].name}")
-        game_started = False
-
-
-def handle_player_response(client, responses, all_clients_responded):
-    try:
-        data = client.socket.recv(1024).decode("utf-8").strip()
-        if data:
-            responses[client] = data
-            with all_clients_responded:
-                all_clients_responded.notify_all()
-    except Exception as e:
-        print(f"Error receiving message from {client.address}: {e}")
-
-def format_question(question):
+    def format_question(self, question):
         current_question = question['question']
         possible_answers = [question['correct_answer']] + question['incorrect_answers']
         answers_str = '\n'.join([f"{i+1}) {html.unescape(answer)}" for i, answer in enumerate(possible_answers)])
-        return f"Question: {current_question}\n{answers_str}"
+        return f"True or False: {current_question}"
 
-def wait_for_responses(responses, connections):
-    lock = threading.Lock()
-    all_clients_responded = threading.Condition(lock)
+    def send_question_to_client(self, client, question_data):
+        try:
+            client.socket.sendall(question_data.encode('utf-8'))
+        except Exception as e:
+            print(f"Error sending message to {client.address}: {e}")
 
-    # Start a thread for each player to handle their response
-    threads = []
-    for client in connections:
-        t = threading.Thread(target=handle_player_response, args=(client, responses, all_clients_responded))
-        t.start()
-        threads.append(t)
+    def start(self):
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket.bind((self.host, self.port))
+        self.server_socket.listen(5)
+        self.server_socket.settimeout(5)  # Set a timeout for accepting connections
+        print(f"Server started, listening on IP address {self.host}")
 
-    # Poll until timeout
-    timeout = 10  # 10 seconds timeout
-    start_time = time.time()
-    with all_clients_responded:
-        while time.time() - start_time < timeout:
-            if len(responses) == len(connections):
-                break
-            all_clients_responded.wait(timeout=1)
+        self.accept_clients()
 
-def process_responses(responses, connections, question):
-    correct_answer = question['correct_answer']
-    correct_players = [client for client, response in responses.items() if response.strip().lower() == correct_answer.strip().lower()]
-    incorrect_players = [client for client, response in responses.items() if response.strip().lower() != correct_answer.strip().lower()]
+        self.game_started = True  # Stop accepting new clients and start the game
 
-    for client in connections:
-        if client in correct_players:
-            print(f"Player {client.name} is correct!")
-        elif client in responses:
-            print(f"Player {client.name} is incorrect!")
+        # Game logic (fetch questions, send them to clients, receive answers, etc.)
+        questions = fetch_and_parse_questions(5, "boolean")
+        print_question(questions[0])
+        self.manage_trivia_game(questions)
 
-    # Disqualify players who didn't respond
-    for client in connections:
-        if client not in responses:
-            disqualify(client, "didn't answer in time.")
+        # Cleanup and closing connections can go here
 
-    if len(correct_players) == 1:
-        print(f"{correct_players[0].name} Wins!\nGame over!\nCongratulations to the winner: {correct_players[0].name}")
-        return -1 # Exit the loop and end the game
+    def broadcast_offers(self, server_name):
+        # Ensure the server name is no more than 32 characters
+        server_name = server_name[:32]
+        # Pad the server name with null characters ('\0') to make it exactly 32 characters long
+        server_name_padded = server_name.ljust(32, '\0')
+        
+        # Pack the message with the server name included
+        message = struct.pack('!Ib32sH', 0xabcddcba, 0x2, server_name_padded.encode(), self.port)
 
-    # Disqualify players who were wrong
-    if len(correct_players) > 0:
-        for client in incorrect_players:
-            disqualify(client, "incorrect answer")
-    else:
-        return 2
+        udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
-
-def disqualify(client, reason):
-    print(f"Player {client.name} {reason}. Disqualifying...")
-    # Send disqualification message to the client
-    send_question_to_client(client, f"{reason}. You are disqualified.")
-    connections.remove(client)        
-
-def broadcast_offers():
-    udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-    udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    message = struct.pack('!IbH', 0xabcddcba, 0x2, 13117)
-    while not game_started:
-        udp_socket.sendto(message, ('<broadcast>', 13117))
-        time.sleep(1)
+        while True:
+            udp_socket.sendto(message, ('<broadcast>', self.port))
+            time.sleep(1)
 
 def main():
-    global game_started
-    host = '0.0.0.0'
-    port = 13117
-
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.bind((host, port))
-    sock.listen(5)
-    sock.settimeout(5)  # Set a timeout for accepting connections
-    print(f"Server started, listening on IP address {host}")
-
-    threading.Thread(target=broadcast_offers, args=()).start()
-
-    accept_clients(sock)
-
-    game_started = True  # Stop accepting new clients and start the game
-
-    # Game logic (fetch questions, send them to clients, receive answers, etc.)
-    # Example: send_to_clients("Welcome to the trivia game!")
-
-    # Example game loop (simplified)
-    questions = fetch_and_parse_questions(5, "boolean")
-    manage_trivia_game(questions, connections)
-    for client in connections:
-        threading.Thread(target=receive, args=(client,)).start()
-
-    # Cleanup and closing connections can go here
+    server = TriviaServer('10.0.0.9', 13117)
+    threading.Thread(target=server.broadcast_offers, args=("YourServerName",)).start()
+    server.start()
 
 if __name__ == "__main__":
     main()
