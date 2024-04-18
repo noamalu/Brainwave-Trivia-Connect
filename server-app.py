@@ -291,7 +291,7 @@ class TriviaServer:
             time.sleep(1)
 
 def main():
-    server = TriviaServer('10.0.0.9', 13117)
+    server = TriviaServer('10.0.0.19', 13117)
     threading.Thread(target=server.broadcast_offers, args=("YourServerName",)).start()
     server.start()
 
