@@ -58,10 +58,12 @@ def parse_questions_response(response):
     parsed_questions = []
     results = response.get('results', [])
     for result in results:
+        correct_answer = result.get('correct_answer', '').lower()
+        is_true = 'true' in correct_answer
         parsed_question = {
             'question': html.unescape(result.get('question', '')),
-            'correct_answer': html.unescape(result.get('correct_answer', '')),
-            'incorrect_answers': [html.unescape(answer) for answer in result.get('incorrect_answers', [])]
+            'correct_answer': is_true,
+            'incorrect_answers': [not is_true]  # Incorrect answer will be opposite of correct answer
         }
         parsed_questions.append(parsed_question)
     
@@ -218,8 +220,15 @@ class TriviaServer:
 
     def process_responses(self, responses, question):
         correct_answer = question['correct_answer']
-        correct_players = [client for client, response in responses.items() if response.strip().lower() == correct_answer.strip().lower()]
-        incorrect_players = [client for client, response in responses.items() if response.strip().lower() != correct_answer.strip().lower()]
+        
+        # Mapping for client responses to boolean values
+        response_mapping = {'Y': True, 'T': True, '1': True, 'N': False, 'F': False, '0': False}
+        
+        # Convert correct answer to boolean value
+        correct_bool_answer = correct_answer
+
+        correct_players = [client for client, response in responses.items() if response_mapping.get(response.strip().upper()) == correct_bool_answer]
+        incorrect_players = [client for client, response in responses.items() if response_mapping.get(response.strip().upper()) != correct_bool_answer]
 
         for client in self.connections:
             if client in correct_players:
@@ -239,14 +248,15 @@ class TriviaServer:
         # Disqualify players who were wrong
         if len(correct_players) > 0:
             for client in incorrect_players:
-                self.disqualify(client, "incorrect answer")                           
+                self.disqualify(client, "incorrect answer")                         
 
     def disqualify(self, client, reason):
         self.connections.remove(client)                 
 
     def format_question(self, question):
         current_question = question['question']
-        possible_answers = [question['correct_answer']] + question['incorrect_answers']
+        possible_answers = ['True', 'False']  # Possible answer choices
+        correct_answer = str(question['correct_answer']) 
         answers_str = '\n'.join([f"{i+1}) {html.unescape(answer)}" for i, answer in enumerate(possible_answers)])
         return f"True or False: {current_question}"
 
@@ -273,6 +283,10 @@ class TriviaServer:
         self.manage_trivia_game(questions)
 
         # Cleanup and closing connections can go here
+
+        # If there are no connections left, start broadcasting offers again
+        if not self.connections:
+            threading.Thread(target=self.broadcast_offers, args=("YourServerName",)).start()
 
     def broadcast_offers(self, server_name):
         # Ensure the server name is no more than 32 characters
