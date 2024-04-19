@@ -186,10 +186,6 @@ class TriviaServer:
 
         if len(self.connections) <= 1:
             print(f"Game over!\nCongratulations to the winner: {self.connections[0].name if len(self.connections) == 1 else 'Which isnt here right now'}")
-            if len(self.connections) == 1:
-                self.connections.remove(self.connections[0])
-                time.sleep(1.5)                        
-
             self.game_started = False
 
     def wait_for_responses(self, responses):
@@ -271,25 +267,27 @@ class TriviaServer:
             print(f"Error sending message to {client.address}: {e}")
 
     def start(self):
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket.bind((self.host, self.port))
+        self.server_socket.listen(5)
+        self.server_socket.settimeout(5)  # Set a timeout for accepting connections
+        print(f"Server started, listening on IP address {self.host}")
+
+        self.accept_clients()
+        self.game_started = True  # Stop accepting new clients and start the game
+
+        # Game logic (fetch questions, send them to clients, receive answers, etc.)
+        questions = fetch_and_parse_questions(5, "boolean")
+        print_question(questions[0])
+        self.manage_trivia_game(questions)
+
+        # Game is over
+        self.game_started = False
+        print("“Game over, sending out offer requests..")
         while(len(self.connections) == 0):
-            self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.server_socket.bind((self.host, self.port))
-            self.server_socket.listen(5)
-            self.server_socket.settimeout(5)  # Set a timeout for accepting connections
-            print(f"Server started, listening on IP address {self.host}")
-
-            self.accept_clients()
-            self.game_started = True  # Stop accepting new clients and start the game
-
-            # Game logic (fetch questions, send them to clients, receive answers, etc.)
-            questions = fetch_and_parse_questions(5, "boolean")
-            print_question(questions[0])
-            self.manage_trivia_game(questions)
-
-            # Game is over
-            self.game_started = False
-            print("Game over, sending out offer requests..")
-      
+            self.accept_clients() # restart game
+            print("“Sending out offer requests..")
+            time.sleep(1)
         
         
 
