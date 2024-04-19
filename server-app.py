@@ -184,12 +184,13 @@ class TriviaServer:
 
             round_number += 1
 
+        #Game over
         if len(self.connections) <= 1:
             print(f"Game over!\nCongratulations to the winner: {self.connections[0].name if len(self.connections) == 1 else 'Which isnt here right now'}")
             if len(self.connections) == 1:
                 self.connections.remove(self.connections[0])
-                time.sleep(1.5)                        
-
+                self.server_socket.close()
+                time.sleep(2)                        
             self.game_started = False
 
     def wait_for_responses(self, responses):
@@ -312,7 +313,7 @@ class TriviaServer:
             time.sleep(1)
 
 def main():
-    server = TriviaServer('10.100.102.77', 13117)
+    server = TriviaServer('10.100.102.47', 13117)
     threading.Thread(target=server.broadcast_offers, args=("YourServerName",)).start()
     server.start()
 

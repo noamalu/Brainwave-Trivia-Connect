@@ -42,12 +42,13 @@ class Client:
 
     def connect_to_server(self):
         """Establish connection to the server."""
+        print("Client started, listening for offer requests...")
         self.tcp_socket = None
         try:
             self.tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             if(self.tcp_socket):
+                print(f"Received offer from server “Mystic” at address {self.host}, attempting to connect...")
                 self.tcp_socket.connect((self.host, self.port))
-                print("Connected to the server.")
                 self.name = input("Enter your name:\n")
                 self.tcp_socket.sendall(self.name.encode())
                 return True
@@ -58,7 +59,7 @@ class Client:
 
 def main():
     # Listen for server offers
-    host = "10.100.102.77"
+    host = "10.100.102.47"
     port = 13117
     client = Client(host, port)
     if not client:
@@ -76,7 +77,7 @@ def main():
     client.tcp_socket.close()
     while True:
         if  client.connect_to_server() == False or client.tcp_socket == None:
-            time.sleep(0.5)
+            time.sleep(3)
         else: #TODO: adjust dup code
             client.receive_msg_from_server()
             #print("Server disconnected, listening for offer requests...")

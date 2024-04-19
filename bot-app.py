@@ -8,13 +8,12 @@ import time
 import random
 
 from clientApp import Client
-
 class Bot(Client):
     def __init__(self, portListen):
         self.portListen = portListen
+        self.name = "BOT: OpenAI"
         self.TCP_Socket = None
         self.done = False
-        self.name = "BOT: OpenAI"
         self.colors = ['\033[91m', '\033[92m', '\033[93m', '\033[94m', '\033[95m', '\033[96m', '\033[97m']
 
     def receive_message_from_server(self):
@@ -52,7 +51,7 @@ class Bot(Client):
                     firstMsg = False
                 else:
                     message = random.choice(["Y", "N"])
-
+                    
                 self.TCP_Socket.send(message.encode())
                 logging.info("Sent: " + message)
                 print(random.choice(self.colors) + "Sent: " + message)
@@ -69,8 +68,7 @@ class Bot(Client):
         try:
             self.TCP_Socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             # self.TCP_Socket.settimeout(5)  # Timeout for socket operations
-            self.host = '10.100.102.47'
-            self.TCP_Socket.connect((self.host.strip(), self.portListen))
+            self.TCP_Socket.connect(('10.100.102.47', self.portListen))
             self.done = False
             self.condition = threading.Condition()
             receive_thread = threading.Thread(target=self.receive_message_from_server)
