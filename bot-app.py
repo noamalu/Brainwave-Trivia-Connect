@@ -15,6 +15,7 @@ class Bot(Client):
         self.TCP_Socket = None
         self.done = False
         self.name = "BOT: OpenAI"
+
         self.colors = ['\033[91m', '\033[92m', '\033[93m', '\033[94m', '\033[95m', '\033[96m', '\033[97m']
 
     def receive_message_from_server(self):
@@ -71,6 +72,7 @@ class Bot(Client):
             # self.TCP_Socket.settimeout(5)  # Timeout for socket operations
             self.host = '10.100.102.47'
             self.TCP_Socket.connect((self.host.strip(), self.portListen))
+
             self.done = False
             self.condition = threading.Condition()
             receive_thread = threading.Thread(target=self.receive_message_from_server)
@@ -88,3 +90,4 @@ class Bot(Client):
 if __name__ == "__main__":
     bot = Bot(13117)
     bot.main_loop()
+

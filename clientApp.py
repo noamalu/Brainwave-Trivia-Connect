@@ -60,6 +60,7 @@ class Client:
 def main():
     # Listen for server offers
     host = "10.100.102.47"
+
     port = 13117
     client = Client(host, port)
     if not client:
@@ -82,6 +83,7 @@ def main():
             client.receive_msg_from_server()
             #print("Server disconnected, listening for offer requests...")
             #client.tcp_socket.close()
+
 
 
 if __name__ == "__main__":
