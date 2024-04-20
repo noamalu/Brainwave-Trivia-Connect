@@ -60,3 +60,11 @@ python bot-app.py
 ## Configuration
 
 You can adjust configuration settings such as socket buffer size, timeouts, and trivia settings in `config.py`.
+
+## Design
+
+design process - 
+class diageam:
+### `triviaClassDiagram.pdf`
+usecase diagram - 
+### `usecaseDiagram.pdf`
