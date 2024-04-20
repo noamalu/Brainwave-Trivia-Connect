@@ -1,7 +1,3 @@
-Sure, here's a README for your project:
-
----
-
 # Trivia Game Server
 
 This project is a multiplayer trivia game server where clients can connect and participate in answering trivia questions. The server supports both human clients and bot clients. Clients connect to the server using TCP sockets.
