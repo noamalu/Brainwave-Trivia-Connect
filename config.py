@@ -31,3 +31,55 @@ CORRECT_ANSWER = 'correct_answer'
 IS_TRUE = 'is_true'
 QUESTION = 'question'
 
+BLUE = '\x1b[34m'
+WHITE = '\x1b[37m'
+
+class ColoredPrinter:
+    def __init__(self):
+        self.current_color = BLUE  # Start with blue color
+
+    def print(self, message):
+        if self.current_color == BLUE:  # Blue color
+            self.current_color = WHITE  # Switch to white color
+        else:
+            self.current_color = BLUE  # Switch to blue color
+        
+        print(self.current_color + message)
+
+NAME_BANK = [
+    "ByteBandit",
+    "DataDynamo",
+    "PacketPirate",
+    "CyberCircuit",
+    "RouterRuler",
+    "LANLiberator",
+    "ProtocolProwler",
+    "FirewallFury",
+    "WiFiWizard",
+    "NetNinja",
+    "SwitchSorcerer",
+    "PingPioneer",
+    "ModemMaestro",
+    "NodeNecromancer",
+    "CryptoCrusader",
+    "SocketSlinger",
+    "FiberFreak",
+    "PortPhantom",
+    "LANLord",
+    "ProtocolProdigy",
+    "BandwidthBard",
+    "RoutingRogue",
+    "PacketProwess",
+    "ByteBuccaneer",
+    "WirelessWarlock",
+    "SwitchSlayer",
+    "CyberSavant",
+    "DataDaredevil",
+    "FirewallFencer",
+    "LANLuminary",
+    "PingPirate",
+    "ModemMaster",
+    "NodeNavigator",
+    "CryptoConqueror",
+    "SocketSavvy"
+]
