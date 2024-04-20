@@ -116,7 +116,29 @@ class TriviaServer:
         self.total_connections = 0
         self.game_started = False
         self.udp_socket = None
+        self.player_stats = {}  # New attribute for tracking player stats
+        self.current_question_answer = True # current question's right answer of analyizng player stats
 
+    def update_player_stats(self, name, response_time):
+        if name not in self.player_stats:
+            # Initialize stats: [fastest response, total correct, max streak, total connections]
+            self.player_stats[name] = [float('inf'), 0, 0, 0, 0]  # last value for current streak
+
+        stats = self.player_stats[name]
+        stats[0] = min(stats[0], response_time)  # Fastest response
+        
+
+    def print_player_stats(self):
+        # Convert stats into a list of tuples for sorting and print top 3 for each category
+        print("Player Statistics:")
+        categories = ['Fastest in the West', 'Chilling Winning', 'Streakingly Good!', 'Lazy Connection AHAHA']
+        for i, category in enumerate(categories):
+            sorted_stats = sorted(self.player_stats.items(), key=lambda x: x[1][i], reverse=(i != 0))
+            print(f"\nTop 3 for {category}:")
+            for rank, (name, stats) in enumerate(sorted_stats[:3]):
+                print(f"{rank+1}. {name} - {stats[i]}")
+    
+    
     def accept_clients(self):
         while not self.game_started:
             try:
@@ -124,6 +146,9 @@ class TriviaServer:
                 new_client = Client(client_socket, address, self.total_connections)
                 new_client.name = new_client.socket.recv(1024).decode().strip()
                 self.connections.append(new_client)
+                if new_client.name not in self.player_stats:
+                    self.player_stats[new_client.name] = [float('inf'), 0, 0, 0]  # Initialize player stats
+                self.player_stats[new_client.name][3] += 1  # Increment connection count
                 print(f"New connection: {new_client.name}")
                 self.total_connections += 1
             except socket.timeout:
@@ -176,13 +201,17 @@ class TriviaServer:
                 self.wait_for_responses(responses)
                 if len(responses) == 0:
                     round_number += 1
-                    continue
+                    print("round over, no responses collected...")
+                    break
                 
                 self.process_responses(responses, question)
-                if not self.game_started:
-                    break
+                # if not self.game_started:
+                #     break
+                # else:
+                #     self.current_question_answer = question['correct_answer']
 
             round_number += 1
+            self.print_player_stats()
 
         #Game over
         if len(self.connections) <= 1:
@@ -196,7 +225,6 @@ class TriviaServer:
     def wait_for_responses(self, responses):
         lock = threading.Lock()
         all_clients_responded = threading.Condition(lock)
-
         # Start a thread for each player to handle their response
         threads = []
         for client in self.connections:
@@ -215,22 +243,24 @@ class TriviaServer:
 
     def handle_player_response(self, client, responses, all_clients_responded):
         try:
+            start_time = time.time()  # Time of receiving response
             data = client.socket.recv(1024).decode("utf-8").strip()
-            if data:
-                responses[client] = data
-                with all_clients_responded:                
-                    all_clients_responded.notify_all()
+            response_time = start_time - start_time  # Calculate response time
+            self.update_player_stats(client.name, response_time)
+            responses[client] = data
+            with all_clients_responded:                
+                all_clients_responded.notify_all()
         except Exception as e:
             print(f"Error receiving message from {client.address}: {e}")    
 
     def process_responses(self, responses, question):
-        correct_answer = question['correct_answer']
+        self.current_question_answer = question['correct_answer']
         
         # Mapping for client responses to boolean values
         response_mapping = {'Y': True, 'T': True, '1': True, 'N': False, 'F': False, '0': False}
         
         # Convert correct answer to boolean value
-        correct_bool_answer = correct_answer
+        correct_bool_answer = self.current_question_answer
 
         correct_players = [client for client, response in responses.items() if response_mapping.get(response.strip().upper()) == correct_bool_answer]
         incorrect_players = [client for client, response in responses.items() if response_mapping.get(response.strip().upper()) != correct_bool_answer]
@@ -238,8 +268,12 @@ class TriviaServer:
         for client in self.connections:
             if client in correct_players:
                 print(f"Player {client.name} is correct!")
+                self.player_stats[client.name][1] += 1  # Increment number of correct answers
+                self.player_stats[client.name][2] += 1  # Increment number of correct answers in a row
+
             elif client in responses:
                 print(f"Player {client.name} is incorrect!")
+                self.player_stats[client.name][2] = 0  # Increment number of correct answers in a row
 
         # Disqualify players who didn't respond
         for client in self.connections:

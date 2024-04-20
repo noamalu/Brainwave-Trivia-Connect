@@ -32,7 +32,6 @@ class Client:
                 print(f"Error receiving message: {e}")
                 break
 
-
     def send_msg_to_server(self, message):
         """Send a message (user's answer) to the server."""
         try:
