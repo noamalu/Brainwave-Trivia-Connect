@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 import html
+import logging
 import socket
 import struct
 import threading
@@ -7,35 +8,37 @@ import time
 from datetime import datetime, timedelta
 import requests
 
+from config import *
+
 trivia_questions = [
-    {"question": "Aston Villa has won the English Premier League title more than once.", "is_true": True},
-    {"question": "Aston Villa's home ground is Villa Park.", "is_true": True},
-    {"question": "Aston Villa was one of the founding members of the English Football League in 1888.", "is_true": True},
-    {"question": "Aston Villa has never won the UEFA Champions League.", "is_true": True},
-    {"question": "Aston Villa's traditional colors are claret and blue.", "is_true": True},
-    {"question": "Aston Villa's nickname is 'The Lions'.", "is_true": True},
-    {"question": "Aston Villa holds the record for the most FA Cup final appearances.", "is_true": True},
-    {"question": "Aston Villa's all-time leading goal scorer is Billy Walker.", "is_true": False},
-    {"question": "Aston Villa has never been relegated from the English Premier League.", "is_true": False},
-    {"question": "Aston Villa has won the UEFA Europa League.", "is_true": False},
-    {"question": "Aston Villa has never won the Football League Cup.", "is_true": False},
-    {"question": "Aston Villa's highest league finish is 2nd place.", "is_true": True},
-    {"question": "Aston Villa has a fierce rivalry with Wolverhampton Wanderers.", "is_true": True},
-    {"question": "Aston Villa has won the FA Cup more times than any other club.", "is_true": False},
-    {"question": "Aston Villa was founded in the 19th century.", "is_true": True},
-    {"question": "Aston Villa's record transfer signing is Darren Bent.", "is_true": False},
-    {"question": "Aston Villa has won the English top-flight division in the 21st century.", "is_true": False},
-    {"question": "Aston Villa's longest-serving manager is Ron Atkinson.", "is_true": False},
-    {"question": "Aston Villa has a statue of Cristiano Ronaldo outside Villa Park.", "is_true": False},
-    {"question": "Aston Villa has never won the European Cup/Champions League.", "is_true": True}
+    {"question": "ASGI stands for Asynchronous Server Gateway Interface.", IS_TRUE: True},
+    {"question": "ASGI is a Python specification for building asynchronous web applications.", IS_TRUE: True},
+    {"question": "ASGI was developed as an evolution of WSGI to support asynchronous programming in web servers.", IS_TRUE: True},
+    {"question": "ASGI allows web applications to handle long-lived connections efficiently.", IS_TRUE: True},
+    {"question": "ASGI servers can handle protocols like HTTP, WebSockets, and others.", IS_TRUE: True},
+    {"question": "ASGI applications are typically run using an ASGI server like Daphne or uvicorn.", IS_TRUE: True},
+    {"question": "ASGI is primarily used in Python frameworks like Django Channels and Starlette.", IS_TRUE: True},
+    {"question": "ASGI supports both synchronous and asynchronous handlers.", IS_TRUE: True},
+    {"question": "ASGI was introduced in Python 3.5 as a standard for asynchronous web servers.", IS_TRUE: False},
+    {"question": "ASGI stands for Asynchronous Gateway Interface.", IS_TRUE: False},
+    {"question": "ASGI applications cannot handle WebSocket connections.", IS_TRUE: False},
+    {"question": "ASGI is only compatible with synchronous web frameworks.", IS_TRUE: False},
+    {"question": "ASGI is designed specifically for single-threaded web servers.", IS_TRUE: False},
+    {"question": "ASGI and WSGI are interchangeable and can be used together seamlessly.", IS_TRUE: False},
+    {"question": "ASGI is primarily used for handling synchronous I/O operations in web applications.", IS_TRUE: False},
+    {"question": "ASGI applications cannot be deployed on traditional web servers like Apache or Nginx.", IS_TRUE: False},
+    {"question": "ASGI is limited to handling only HTTP requests.", IS_TRUE: False},
+    {"question": "ASGI is a replacement for the Django framework.", IS_TRUE: False},
+    {"question": "ASGI was developed by a consortium of major web server vendors.", IS_TRUE: False},
+    {"question": "ASGI is the default interface for building synchronous web applications in Python.", IS_TRUE: False}
 ]
 
-def get_trivia_questions(QuestionsAmount, typeOfAnswers):
+def get_trivia_questions(QuestionsAmount):
     # URL of the API
-    url = f"https://opentdb.com/api.php?amount={QuestionsAmount}&type={typeOfAnswers}"
+    url = f"https://opentdb.com/api.php?amount={QuestionsAmount}&type=boolean"
 
     # Send a GET request to the API
-    response = requests.get(url)
+    response = requests.get(url, timeout=RESPONSE_TIMEOUT)
 
     # Check if the request was successful (status code 200)
     if response.status_code == 200:
@@ -47,54 +50,56 @@ def get_trivia_questions(QuestionsAmount, typeOfAnswers):
         return None
 
 def print_question(question_data):
-    print("Question:", question_data['question'])
-    print("Correct Answer:", question_data['correct_answer'])
+    print("Question:", question_data[QUESTION])
+    print("Correct Answer:", question_data[CORRECT_ANSWER])
     print("Incorrect Answers:")
     for answer in question_data['incorrect_answers']:
         print("-", answer)
     print()
 
-def parse_questions_response(response):
+def parse_questions(questions):
     parsed_questions = []
-    results = response.get('results', [])
-    for result in results:
-        correct_answer = result.get('correct_answer', '').lower()
-        is_true = 'true' in correct_answer
+    for question in questions:
+        if IS_TRUE in question:
+            # Predefined question
+            correct_answer = str(question[IS_TRUE])
+            incorrect_answer = str(not question[IS_TRUE])
+        else:
+            # API response
+            correct_answer = question.get(CORRECT_ANSWER, '').lower()
+            incorrect_answer = str(not ('true' in correct_answer))
+        
         parsed_question = {
-            'question': html.unescape(result.get('question', '')),
-            'correct_answer': is_true,
-            'incorrect_answers': [not is_true]  # Incorrect answer will be opposite of correct answer
+            QUESTION: html.unescape(question.get(QUESTION, '')),
+            CORRECT_ANSWER: correct_answer,
+            'incorrect_answers': [incorrect_answer]
         }
         parsed_questions.append(parsed_question)
     
     return parsed_questions
-# def fetch_and_parse_questions(QuestionsAmount, typeOfAnswers):
-#     unparsedData = get_trivia_questions(QuestionsAmount, typeOfAnswers)
-#     return parse_questions_response(unparsedData)    
 
-def parse_predefined_questions(questions):
-    parsed_questions = []
-    for question in questions:
-        parsed_question = {
-            'question': question['question'],
-            'correct_answer': str(question['is_true']),
-            'incorrect_answers': [str(not question['is_true'])]
-        }
-        parsed_questions.append(parsed_question)
-    return parsed_questions
-
-def fetch_and_parse_questions(QuestionsAmount, typeOfAnswers):
+def fetch_and_parse_questions(QuestionsAmount):
     try:
-        unparsedData = get_trivia_questions(QuestionsAmount, typeOfAnswers)
+        unparsedData = get_trivia_questions(QuestionsAmount)
     except Exception as e:
-        print("An error occurred while fetching trivia questions:", e)
+        logging.WARNING(e)
         unparsedData = None
 
     if unparsedData is not None:
-        return parse_questions_response(unparsedData)
+        # Check if the unparsed data is a dictionary with 'results' key
+        if 'results' in unparsedData:
+            # Parse the questions from the dictionary structure
+            return parse_questions(unparsedData['results'])
+        # Check if the unparsed data is a list of dictionaries with 'question' and 'is_true' keys
+        elif isinstance(unparsedData, list) and all(isinstance(item, dict) and 'question' in item and 'is_true' in item for item in unparsedData):
+            # Parse the questions directly from the list
+            return parse_questions(unparsedData)
+        else:
+            print("Invalid format of unparsed data. Using predefined question bank.")
+            return parse_questions(trivia_questions)
     else:
         print("API request failed. Using predefined question bank.")
-        return parse_predefined_questions(trivia_questions)
+        return parse_questions(trivia_questions)
 
 class Client(threading.Thread):
     def __init__(self, socket, address, id):
@@ -122,13 +127,15 @@ class TriviaServer:
             try:
                 client_socket, address = self.server_socket.accept()
                 new_client = Client(client_socket, address, self.total_connections)
-                new_client.name = new_client.socket.recv(1024).decode().strip()
+                new_client.name = new_client.socket.recv(SOCKET_BUFFER_SIZE).decode().strip()
                 self.connections.append(new_client)
                 print(f"New connection: {new_client.name}")
                 self.total_connections += 1
             except socket.timeout:
                 break
-        print("No longer accepting new clients. Game is starting.")
+            except ConnectionResetError:
+                print("Connection closed by the client before establishing a connection.")
+                continue
 
     def receive(self, client):
         try:
@@ -138,15 +145,18 @@ class TriviaServer:
                     client.first_message_received = True
                     continue
                 
-                data = client.socket.recv(1024).decode().strip()
+                data = client.socket.recv(SOCKET_BUFFER_SIZE).decode().strip()
                 if data:
                     print(f"Client {client.name} answered {data}")
                     # Here, you could add logic to check answers, update scores, etc.
+        except ConnectionResetError:
+            print(f"Connection closed by client {client.name}")
         except Exception as e:
             print(f"Error receiving data from client {client.name}: {e}")
         finally:
             client.socket.close()
             self.connections.remove(client)
+
 
     def manage_trivia_game(self, questions):    
         round_number = 1
@@ -186,7 +196,9 @@ class TriviaServer:
 
         #Game over
         if len(self.connections) <= 1:
-            print(f"Game over!\nCongratulations to the winner: {self.connections[0].name if len(self.connections) == 1 else 'Which isnt here right now'}")
+            msg = f"Game over!\nCongratulations to the winner: {self.connections[0].name if len(self.connections) == 1 else 'Which isnt here right now'}"            
+            self.print_and_broadcast_to_players(msg)
+           
             if len(self.connections) == 1:
                 self.connections.remove(self.connections[0])
                 self.server_socket.close()
@@ -205,7 +217,7 @@ class TriviaServer:
             threads.append(t)
 
         # Poll until timeout
-        timeout = 10  # 10 seconds timeout
+        timeout = RESPONSE_TIMEOUT  # RESPONSE_TIMEOUT seconds timeout
         start_time = time.time()
         with all_clients_responded:
             while time.time() - start_time < timeout:
@@ -215,7 +227,7 @@ class TriviaServer:
 
     def handle_player_response(self, client, responses, all_clients_responded):
         try:
-            data = client.socket.recv(1024).decode("utf-8").strip()
+            data = client.socket.recv(SOCKET_BUFFER_SIZE).decode("utf-8").strip()
             if data:
                 responses[client] = data
                 with all_clients_responded:                
@@ -224,28 +236,27 @@ class TriviaServer:
             print(f"Error receiving message from {client.address}: {e}")    
 
     def process_responses(self, responses, question):
-        correct_answer = question['correct_answer']
-        
-        # Mapping for client responses to boolean values
-        response_mapping = {'Y': True, 'T': True, '1': True, 'N': False, 'F': False, '0': False}
-        
+        correct_answer = question[CORRECT_ANSWER]                
         # Convert correct answer to boolean value
-        correct_bool_answer = correct_answer
+        correct_bool_answer = True if correct_answer.lower() == 'true' else False
 
-        correct_players = [client for client, response in responses.items() if response_mapping.get(response.strip().upper()) == correct_bool_answer]
-        incorrect_players = [client for client, response in responses.items() if response_mapping.get(response.strip().upper()) != correct_bool_answer]
+        correct_players = [client for client, response in responses.items() if RESPONSE_MAP.get(response.strip().upper()) == correct_bool_answer]             
+        incorrect_players = [client for client, response in responses.items() if RESPONSE_MAP.get(response.strip().upper()) != correct_bool_answer]
 
         for client in self.connections:
             if client in correct_players:
-                print(f"Player {client.name} is correct!")
+                msg = f"Player {client.name} is correct!"
+                self.print_and_broadcast_to_players(msg)
             elif client in responses:
-                print(f"Player {client.name} is incorrect!")
+                msg = f"Player {client.name} is incorrect!"
+                self.print_and_broadcast_to_players(msg)
 
         # Disqualify players who didn't respond
         for client in self.connections:
             if client not in responses:
-                print(f"Player {client.name} didn't answer in time.")
-                self.disqualify(client, "didn't answer in time.")
+                msg = f"Player {client.name} didn't answer in time."
+                self.print_and_broadcast_to_players(msg)
+                self.disconnectClient(client)
 
         if len(correct_players) == 1:
             self.game_started = False  # Set game_started to False when a winner is determined
@@ -253,17 +264,23 @@ class TriviaServer:
         # Disqualify players who were wrong
         if len(correct_players) > 0:
             for client in incorrect_players:
-                self.disqualify(client, "incorrect answer")                         
+                self.disconnectClient(client)                         
 
-    def disqualify(self, client, reason):
+    def print_and_broadcast_to_players(self, message):
+        print(message)
+        for client in self.connections:
+            try:
+                client.socket.sendall(message.encode('utf-8'))
+            except Exception as e:
+                print(f"Error sending message to {client.address}: {e}")                       
+
+    def disconnectClient(self, client):
         self.connections.remove(client)                 
 
     def format_question(self, question):
-        current_question = question['question']
+        current_question = question[QUESTION]
         possible_answers = ['True', 'False']  # Possible answer choices
-        correct_answer = str(question['correct_answer']) 
-        answers_str = '\n'.join([f"{i+1}) {html.unescape(answer)}" for i, answer in enumerate(possible_answers)])
-        return f"True or False: {current_question}"
+        return f"True or False: {current_question}" 
 
     def send_question_to_client(self, client, question_data):
         try:
@@ -272,48 +289,60 @@ class TriviaServer:
             print(f"Error sending message to {client.address}: {e}")
 
     def start(self):
-        while(len(self.connections) == 0):
+        while True:
             self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.server_socket.bind((self.host, self.port))
             self.server_socket.listen(5)
-            self.server_socket.settimeout(5)  # Set a timeout for accepting connections
+            self.server_socket.settimeout(SOCKET_TIMEOUT)  # Set a timeout for accepting connections
             print(f"Server started, listening on IP address {self.host}")
 
             self.accept_clients()
-            self.game_started = True  # Stop accepting new clients and start the game
 
-            # Game logic (fetch questions, send them to clients, receive answers, etc.)
-            questions = fetch_and_parse_questions(5, "boolean")
-            print_question(questions[0])
-            self.manage_trivia_game(questions)
+            if len(self.connections) > 0:
+                self.game_started = True  # Start the game only if there are clients connected
+                print("No longer accepting new clients. Game is starting.")
 
-            # Game is over
-            self.game_started = False
-            print("Game over, sending out offer requests..")
+                # Game logic (fetch questions, send them to clients, receive answers, etc.)
+                questions = fetch_and_parse_questions(5)
+
+                welcome_message = f"Welcome to the {self.name} server, where we are answering trivia questions about Aston Villa FC.\n"
+                welcome_message += "\n".join([f"Player {i+1}: {client.name}" for i, client in enumerate(self.connections)])
+                welcome_message += f"\n\nAfter {RESPONSE_TIMEOUT} seconds pass during which no additional player joins, the game begins.\n"
+                welcome_message += "The server will now start sending questions. Good luck!\n"
+                for client in self.connections:
+                    try:
+                        print(welcome_message)
+                        client.socket.sendall(welcome_message.encode('utf-8'))
+                    except Exception as e:
+                        print(f"Error sending welcome message to {client.address}: {e}")
+
+                self.manage_trivia_game(questions)
+
+                # Game is over
+                self.game_started = False
+                print("Game over, sending out offer requests..")
+            else:
+                print("No clients connected. Waiting for clients to connect.")
       
-        
-        
-
-
     def broadcast_offers(self, server_name):
         
-        # Ensure the server name is no more than 32 characters
-        server_name = server_name[:32]
-        # Pad the server name with null characters ('\0') to make it exactly 32 characters long
-        self.name = server_name.ljust(32, '\0')
+        # Ensure the server name is no more than SERVER_NAME_LENGTH characters
+        server_name = server_name[:SERVER_NAME_LENGTH]
+        # Pad the server name with null characters ('\0') to make it exactly SERVER_NAME_LENGTH characters long
+        self.name = server_name.ljust(SERVER_NAME_LENGTH, '\0')
         
         # Pack the message with the server name included
-        message = struct.pack('!Ib32sH', 0xabcddcba, 0x2, self.name.encode(), self.port)
+        message = struct.pack(PACK_FORMAT, UDP_HEADER_MAGIC, UDP_HEADER_VERSION, self.name.encode(), self.port)
 
         self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        self.udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, BROADCAST_INTERVAL)
 
         while True:
             self.udp_socket.sendto(message, ('<broadcast>', self.port))
             time.sleep(1)
 
 def main():
-    server = TriviaServer('10.100.102.47', 13117)
+    server = TriviaServer(HOST, PORT)
     threading.Thread(target=server.broadcast_offers, args=("YourServerName",)).start()
     server.start()
 
