@@ -4,6 +4,8 @@ import threading
 import sys
 import time
 
+from config import *
+
 class Client:
     def __init__(self,host,port):
         self.host = host
@@ -13,23 +15,22 @@ class Client:
         self.UDP_SOCKET = None
 
     def receive_msg_from_server(self):
-        """Continuously listen for messages from the server and handle them. 
-        Do not prompt for user input on the first message."""
-        
+        """Continuously listen for messages from the server and handle them."""
         while True:
             try:
-                data = self.tcp_socket.recv(1024).decode("utf-8")
+                data = self.tcp_socket.recv(SOCKET_BUFFER_SIZE).decode("utf-8")
                 print(data)
-                
-                # Check if the message indicates disqualification
                 if not data:
                     break  # Exit the loop if disqualified
-                    
-                # For subsequent messages, prompt the user for their answer
-                answer = input("Your answer: ")
-                self.send_msg_to_server(answer)
+
+                # If the message indicates that the user should input their answer
+                if "True or False:" in data:
+                    # Prompt the user for their answer
+                    answer = input("Your answer: ")
+                    self.send_msg_to_server(answer)
             except Exception as e:
                 print(f"Error receiving message: {e}")
+                self.tcp_socket.close()
                 break
 
 
@@ -59,9 +60,9 @@ class Client:
 
 def main():
     # Listen for server offers
-    host = "10.100.102.47"
-
-    port = 13117
+    host = HOST
+    port = PORT
+    
     client = Client(host, port)
     if not client:
         print("No server offers received. Exiting.")
@@ -81,9 +82,6 @@ def main():
             time.sleep(3)
         else: #TODO: adjust dup code
             client.receive_msg_from_server()
-            #print("Server disconnected, listening for offer requests...")
-            #client.tcp_socket.close()
-
 
 
 if __name__ == "__main__":
