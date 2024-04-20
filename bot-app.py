@@ -56,9 +56,7 @@ class Bot(Client):
     def start(self):
         try:
             self.tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.host = HOST
-
-            self.tcp_socket.connect((self.host.strip(), self.port))
+            self.tcp_socket.connect((self.host, self.port))
 
             self.done = False
             self.condition = threading.Condition()
@@ -74,6 +72,12 @@ class Bot(Client):
             if self.tcp_socket:
                 self.tcp_socket.close()
 
+def get_local_ip_address():
+    return socket.gethostbyname(socket.gethostname())
+
 if __name__ == "__main__":
-    bot = Bot(HOST, PORT)
+    host = get_local_ip_address()
+    if host is None:
+        print("No suitable IP address found.")
+    bot = Bot(host, PORT)
     bot.start()

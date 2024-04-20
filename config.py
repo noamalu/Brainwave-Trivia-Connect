@@ -2,8 +2,8 @@
 
 # Socket settings
 SOCKET_BUFFER_SIZE = 1024
-SOCKET_TIMEOUT = 10  # Socket timeout for accepting connections
-
+SOCKET_TIMEOUT = 10  # Socket timeout for accepting connections 
+SAFTY_FIRST = 5
 # Timeout settings
 RESPONSE_TIMEOUT = 10  # Timeout for waiting for client responses
 
@@ -22,7 +22,7 @@ PACK_FORMAT = '!Ib32sH'
 # server name length
 SERVER_NAME_LENGTH = 32  # length for the server name
 
-HOST = '10.0.0.9'
+#HOST = '10.0.0.9'
 PORT = 13117
 
 RESPONSE_MAP = {'Y': True, 'T': True, '1': True, 'N': False, 'F': False, '0': False}

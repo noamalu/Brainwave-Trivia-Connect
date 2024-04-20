@@ -20,7 +20,7 @@ class Client(ColoredPrinter):
         """Continuously listen for messages from the server and handle them."""
         while True:
             try:
-                self.tcp_socket.settimeout(SOCKET_TIMEOUT+2)
+                self.tcp_socket.settimeout(SOCKET_TIMEOUT+SAFTY_FIRST)
                 data = self.tcp_socket.recv(SOCKET_BUFFER_SIZE).decode("utf-8")
                 self.print(data)
                 if not data:
@@ -59,17 +59,23 @@ class Client(ColoredPrinter):
             self.print(f"Could not connect to the server: {e}")
             return False
 
+def get_local_ip_address():
+    return socket.gethostbyname(socket.gethostname())
 
 def main():
     # Listen for server offers
-    host = HOST
+    host = get_local_ip_address()
+    if host is None:
+        print("No suitable IP address found.")
+        return
+    
     port = PORT
     
     client = Client(host, port)
     while True:
         if not client.connect_to_server():
             client.print("No server offers received or could not connect. Retrying in 3 seconds...")
-            time.sleep(3)
+            time.sleep(1)
             continue
 
         # Start listening for messages (questions) from the server

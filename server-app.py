@@ -446,10 +446,17 @@ class TriviaServer(ColoredPrinter):
 
         while True:
             self.udp_socket.sendto(message, ('<broadcast>', self.port))
-            time.sleep(1)
+            time.sleep(0.3)
+
+def get_local_ip_address():
+    return socket.gethostbyname(socket.gethostname())
 
 def main():
-    server = TriviaServer(HOST, PORT)
+    server_ip = get_local_ip_address()
+    if server_ip is None:
+        print("No suitable IP address found.")
+        return
+    server = TriviaServer(server_ip, PORT)
     threading.Thread(target=server.broadcast_offers, args=("YourServerName",)).start()
     server.start()
 
