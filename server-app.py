@@ -110,11 +110,12 @@ class Client(threading.Thread):
 
 class TriviaServer:
     def __init__(self, host, port):
-        self.host = host
+        self.host = host.strip()
         self.port = port
         self.connections = []
         self.total_connections = 0
         self.game_started = False
+        self.udp_socket = None
 
     def accept_clients(self):
         while not self.game_started:
@@ -126,7 +127,6 @@ class TriviaServer:
                 print(f"New connection: {new_client.name}")
                 self.total_connections += 1
             except socket.timeout:
-                # If no new connections within a certain time, break the loop
                 break
         print("No longer accepting new clients. Game is starting.")
 
@@ -184,8 +184,13 @@ class TriviaServer:
 
             round_number += 1
 
-        if len(self.connections) == 1:
-            print(f"Game over!\nCongratulations to the winner: {self.connections[0].name}")
+        #Game over
+        if len(self.connections) <= 1:
+            print(f"Game over!\nCongratulations to the winner: {self.connections[0].name if len(self.connections) == 1 else 'Which isnt here right now'}")
+            if len(self.connections) == 1:
+                self.connections.remove(self.connections[0])
+                self.server_socket.close()
+                time.sleep(2)                        
             self.game_started = False
 
     def wait_for_responses(self, responses):
@@ -206,7 +211,7 @@ class TriviaServer:
             while time.time() - start_time < timeout:
                 if len(responses) == len(self.connections):
                     break
-                all_clients_responded.wait(timeout=1)
+                all_clients_responded.wait(timeout)
 
     def handle_player_response(self, client, responses, all_clients_responded):
         try:
@@ -267,47 +272,52 @@ class TriviaServer:
             print(f"Error sending message to {client.address}: {e}")
 
     def start(self):
-        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server_socket.bind((self.host, self.port))
-        self.server_socket.listen(5)
-        self.server_socket.settimeout(5)  # Set a timeout for accepting connections
-        print(f"Server started, listening on IP address {self.host}")
+        while(len(self.connections) == 0):
+            self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.server_socket.bind((self.host, self.port))
+            self.server_socket.listen(5)
+            self.server_socket.settimeout(5)  # Set a timeout for accepting connections
+            print(f"Server started, listening on IP address {self.host}")
 
-        self.accept_clients()
+            self.accept_clients()
+            self.game_started = True  # Stop accepting new clients and start the game
 
-        self.game_started = True  # Stop accepting new clients and start the game
+            # Game logic (fetch questions, send them to clients, receive answers, etc.)
+            questions = fetch_and_parse_questions(5, "boolean")
+            print_question(questions[0])
+            self.manage_trivia_game(questions)
 
-        # Game logic (fetch questions, send them to clients, receive answers, etc.)
-        questions = fetch_and_parse_questions(5, "boolean")
-        print_question(questions[0])
-        self.manage_trivia_game(questions)
+            # Game is over
+            self.game_started = False
+            print("Game over, sending out offer requests..")
+      
+        
+        
 
-        # Cleanup and closing connections can go here
-
-        # If there are no connections left, start broadcasting offers again
-        if not self.connections:
-            threading.Thread(target=self.broadcast_offers, args=("YourServerName",)).start()
 
     def broadcast_offers(self, server_name):
+        
         # Ensure the server name is no more than 32 characters
         server_name = server_name[:32]
         # Pad the server name with null characters ('\0') to make it exactly 32 characters long
-        server_name_padded = server_name.ljust(32, '\0')
+        self.name = server_name.ljust(32, '\0')
         
         # Pack the message with the server name included
-        message = struct.pack('!Ib32sH', 0xabcddcba, 0x2, server_name_padded.encode(), self.port)
+        message = struct.pack('!Ib32sH', 0xabcddcba, 0x2, self.name.encode(), self.port)
 
-        udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        self.udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
         while True:
-            udp_socket.sendto(message, ('<broadcast>', self.port))
+            self.udp_socket.sendto(message, ('<broadcast>', self.port))
             time.sleep(1)
 
 def main():
-    server = TriviaServer('10.0.0.19', 13117)
+    server = TriviaServer('10.100.102.47', 13117)
     threading.Thread(target=server.broadcast_offers, args=("YourServerName",)).start()
     server.start()
+
+    
 
 if __name__ == "__main__":
     main()
