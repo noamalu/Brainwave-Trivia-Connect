@@ -1,0 +1,8 @@
+# Ignore CPython related files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
+*.pyzw
