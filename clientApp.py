@@ -47,7 +47,7 @@ class Client(ColoredPrinter):
     def connect_to_server(self):
         """Establish connection to the server."""
         self.print("Client started, listening for offer requests...")
-        self.tcp_socket = None
+        # self.tcp_socket = None
         try:
             self.tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             if(self.tcp_socket):

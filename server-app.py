@@ -141,11 +141,12 @@ class TriviaServer(ColoredPrinter):
         while not self.game_started:
             try:
                 client_socket, address = self.server_socket.accept()
-                new_client = Client(client_socket, address, self.total_connections)
-                new_client.name = new_client.socket.recv(SOCKET_BUFFER_SIZE).decode().strip()
-                self.connections.append(new_client)
-                self.print(f"New connection: {new_client.name}")
-                self.total_connections += 1
+                if address not in [client.address for client in self.connections]:
+                    new_client = Client(client_socket, address, self.total_connections)
+                    new_client.name = new_client.socket.recv(SOCKET_BUFFER_SIZE).decode().strip()
+                    self.connections.append(new_client)
+                    self.print(f"New connection: {new_client.name}")
+                    self.total_connections += 1
             except socket.timeout:
                 break
             except ConnectionResetError:
